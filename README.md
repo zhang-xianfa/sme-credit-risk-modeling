@@ -54,8 +54,10 @@ sme-credit-risk-modeling/
 │   ├── lightgbm_信贷风险模型.py      # LightGBM：同上
 │   ├── 决策树训练.py                # 决策树 baseline
 │   ├── sort_and_merge.py          # 两模型违约概率取平均
+│   ├── ablation_x7.py             # 消融实验：去掉 X7 信誉评级看 AUC 掉多少
 │   └── 数据可视化.py                # 特征分布与模型结果可视化
 ├── data/                          # 中间数据与模型输出（大附件未入库，见下）
+├── results/                       # 消融实验结果（ablation_x7.csv）
 ├── figures/                       # 图表
 ├── requirements.txt
 └── README.md
@@ -95,9 +97,40 @@ python xgboost_train_model.py      # XGBoost
 python lightgbm_信贷风险模型.py       # LightGBM
 python sort_and_merge.py           # 融合两模型输出
 python 数据可视化.py                 # 出图
+
+# 消融实验：去掉 X7 后重算 5 折 AUC（结果写 results/ablation_x7.csv）
+python ../src/ablation_x7.py
 ```
 
-## 六、说明
+## 六、已知问题与消融实验
+
+这个项目有两处需要主动交代的地方，面试时被问到比被查出来好：
+
+**1. `X7_信誉评级得分` 是构造出来的列，和标签高度共线。**
+`xgboost_train_model.py` 里它是 `[1.00]*80 + [0.75]*20 + [0.50]*10 + [0.25]*12`，
+等于按违约情况给了个分级。模型带着它训练，AUC 会虚高，不代表「只看发票数据」的能力。
+
+用 `src/ablation_x7.py` 在同一份数据、同一套分层 5 折切分下做了对照
+（122 家样本、26 家违约，`results/ablation_x7.csv`）：
+
+| 实验组 | 特征数 | 5 折 AUC（均值 ± 标准差） |
+|---|---|---|
+| 含 X7（与主流程一致） | 7 | 0.8849 ± 0.0602 |
+| 去 X7（仅发票衍生特征） | 6 | 0.8282 ± 0.0494 |
+
+去掉 X7 后 AUC 下降约 **0.057**，说明**真正来自发票特征的信息量约在 0.83 这一档**，
+更接近这个项目对外应该讲的数字。样本只有 122 家，AUC 的置信区间很宽，
+所以这个数只作量级参考，不能当精确指标。
+（本机没有 xgboost，脚本自动退到 sklearn 的 HistGradientBoosting；
+装了 xgboost 会优先用它，与主流程同族。）
+
+**2. 风险排序阶段的概率是在全量样本上预测的。**
+`xgboost_train_model.py:313` 对 `X_full` 做 `predict_proba`，其中包含训练样本，
+因此 `enterprise_default_probabilities*.csv` 里的概率**偏高**。
+它的用途是给 122 家企业排风险名次（排序对单调变换不敏感），
+不应当作「样本外违约概率」引用。
+
+## 七、说明
 
 - 整理时将脚本统一扁平化到 `src/`，并把其中硬编码的本机绝对路径改为指向本仓库 `data/`
   的相对路径（共 12 处），其余逻辑未改动。

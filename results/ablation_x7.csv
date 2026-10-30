@@ -1,0 +1,3 @@
+﻿实验组,特征数,AUC均值,AUC标准差,AUC最小,AUC最大,模型后端
+含 X7（与主流程一致）,7,0.8849,0.0602,0.8105,0.9737,sklearn-HistGradientBoosting
+去 X7（仅发票衍生特征）,6,0.8282,0.0494,0.7684,0.9123,sklearn-HistGradientBoosting
